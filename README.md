@@ -46,7 +46,7 @@
 - **번호판 인식**: OpenCV, Tesseract OCR
 - **데이터베이스**: SQLite/MySQL 고려 중
 - **백엔드**: Python
-- **프론트엔드**: 미정정
+- **프론트엔드**: 미정
 
 ### 시스템 요구사항 (System Requirements)
 - Python 3.8 이상
