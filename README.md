@@ -16,7 +16,7 @@
 ## 🔄 시스템 구성 흐름 (System Flow)
 
 ### 1. 차량 진입 감지 (Vehicle Entry Detection)
-- YOLOv5 기반 차량 객체 탐지
+- YOLOv8 기반 차량 객체 탐지
 - OpenCV를 활용한 번호판 영역 추출
 - Tesseract OCR을 통한 번호판 인식
 
@@ -42,7 +42,7 @@
 ## 🛠 기술 스택 (Technical Stack)
 
 ### 핵심 기술 (Core Technologies)
-- **차량 인식**: YOLOv5, OpenCV
+- **차량 인식**: YOLOv8, OpenCV
 - **번호판 인식**: OpenCV, Tesseract OCR
 - **데이터베이스**: SQLite/MySQL 고려 중
 - **백엔드**: Python
