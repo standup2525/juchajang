@@ -1,1 +1,9 @@
-
+opencv-python==4.8.1.78
+numpy==1.24.3
+requests==2.31.0
+pytesseract==0.3.10
+ultralytics==8.0.196
+Pillow==10.0.1
+matplotlib==3.7.2
+flask==2.3.3
+werkzeug==2.3.7 
