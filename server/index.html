@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>공영주차장 요금조회</title>
+</head>
+<body>
+  <h1>차량번호로 조회</h1>
+  <input id="plate" placeholder="예: 12가 3456">
+  <button onclick="check()">조회</button>
+  <div id="result"></div>
+
+  <script>
+    async function check() {
+      const plate = document.getElementById("plate").value;
+      const res = await fetch('/check_car', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plate_number: plate })
+      });
+      const data = await res.json();
+      const result = document.getElementById("result");
+
+      if (data.status === "입차") {
+        result.innerHTML = `입차: ${data.entry_time} <br> 현재요금: ${data.fee}원`;
+      } else if (data.status === "출차") {
+        result.innerHTML = `입차: ${data.entry_time} <br> 출차: ${data.exit_time} <br> 최종요금: ${data.fee}원`;
+      } else {
+        result.innerHTML = "기록 없음";
+      }
+    }
+  </script>
+</body>
+</html>
