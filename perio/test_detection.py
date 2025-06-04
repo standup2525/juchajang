@@ -7,20 +7,20 @@ This script tests the core detection functionality without server communication
 
 import cv2
 import numpy as np
-import time
 import logging
 from ultralytics import YOLO
 import pytesseract
+from picamera2 import Picamera2
+import time
 
 # ================================
 # Configuration
 # ================================
 
 # Camera settings
-CAMERA_INDEX = 0
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
-CAMERA_FPS = 30
+CAMERA_WIDTH = 640
+CAMERA_HEIGHT = 480
+CAMERA_FPS = 15
 
 # Detection settings
 YOLO_CONFIDENCE = 0.5    # minimum confidence for YOLO detection
@@ -29,13 +29,7 @@ YOLO_CONFIDENCE = 0.5    # minimum confidence for YOLO detection
 # Logging Setup
 # ================================
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ================================
@@ -51,120 +45,85 @@ def detect_vehicles(frame, model):
     Returns:
         list: List of detected vehicle bounding boxes
     """
-    try:
-        results = model(frame, conf=YOLO_CONFIDENCE)
-        vehicles = []
-        
-        for result in results:
-            boxes = result.boxes
-            for box in boxes:
-                # Check if detected object is a vehicle
-                if box.cls in [2, 3, 5, 7]:  # car, motorcycle, bus, truck
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    vehicles.append((x1, y1, x2, y2))
-        
-        return vehicles
-    except Exception as e:
-        logger.error(f"Error in vehicle detection: {e}")
-        return []
+    results = model(frame)
+    return results[0].boxes.data.cpu().numpy()
 
-def recognize_plate(frame, bbox):
+def recognize_plate(frame, box):
     """
     Recognize license plate in the given bounding box
     Args:
         frame: Input frame
-        bbox: Bounding box (x1, y1, x2, y2)
+        box: Bounding box (x1, y1, x2, y2)
     Returns:
         str: Recognized plate number or None
     """
+    x1, y1, x2, y2 = map(int, box[:4])
+    plate_img = frame[y1:y2, x1:x2]
+    
+    # 이미지 전처리
+    gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    
+    # OCR 수행
     try:
-        x1, y1, x2, y2 = bbox
-        plate_region = frame[y1:y2, x1:x2]
-        
-        # Convert to grayscale
-        gray = cv2.cvtColor(plate_region, cv2.COLOR_BGR2GRAY)
-        
-        # Apply threshold
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # Recognize text
-        plate_text = pytesseract.image_to_string(thresh, lang='kor+eng')
-        
-        # Clean and validate plate number
-        plate_text = ''.join(c for c in plate_text if c.isalnum() or c in '가나다라마바사아자차카타파하')
-        
-        if len(plate_text) >= 7:  # Minimum length for Korean plates
-            return plate_text
-        return None
+        text = pytesseract.image_to_string(thresh, lang='kor+eng')
+        return text.strip()
     except Exception as e:
-        logger.error(f"Error in plate recognition: {e}")
+        logger.error(f"OCR 오류: {str(e)}")
         return None
 
 def main():
     """
     Main detection loop
     """
-    # Initialize camera
-    cap = cv2.VideoCapture(CAMERA_INDEX)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-    cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-    
-    # Check if camera opened successfully
-    if not cap.isOpened():
-        logger.error("Failed to open camera")
-        return
-    
-    # Initialize YOLO model
-    logger.info("Loading YOLO model...")
-    model = YOLO('yolov8n.pt')
-    logger.info("YOLO model loaded successfully")
-    
-    # Create window
-    cv2.namedWindow("Vehicle Detection", cv2.WINDOW_NORMAL)
-    
-    logger.info("Starting detection system...")
-    logger.info("Press 'q' to quit")
-    
     try:
+        # YOLO 모델 로드
+        model = YOLO('yolov8n.pt')
+        
+        # 카메라 초기화
+        picam2 = Picamera2()
+        config = picam2.create_video_configuration(
+            main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": "RGB888"},
+            lores={"size": (320, 240), "format": "YUV420"}
+        )
+        picam2.configure(config)
+        picam2.start()
+        time.sleep(2)  # 카메라 초기화 대기
+        
+        logger.info("카메라 초기화 완료")
+        
         while True:
-            # Get frame
-            ret, frame = cap.read()
-            if not ret:
-                logger.error("Failed to capture frame")
-                time.sleep(1)
-                continue
+            # 프레임 캡처
+            frame = picam2.capture_array()
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             
-            # Detect vehicles
-            vehicles = detect_vehicles(frame, model)
+            # 차량 감지
+            boxes = detect_vehicles(frame, model)
             
-            # Process each detected vehicle
-            for bbox in vehicles:
-                # Recognize plate
-                plate_number = recognize_plate(frame, bbox)
-                
-                # Draw bounding box
-                x1, y1, x2, y2 = bbox
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                
-                # Add plate number if recognized
-                if plate_number:
-                    cv2.putText(frame, plate_number, 
-                              (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            # 결과 표시
+            for box in boxes:
+                x1, y1, x2, y2, conf, cls = box
+                if conf > 0.5:  # 신뢰도 50% 이상
+                    # 박스 그리기
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                    
+                    # 번호판 인식
+                    plate_text = recognize_plate(frame, box)
+                    if plate_text:
+                        cv2.putText(frame, plate_text, (int(x1), int(y1)-10),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
             
-            # Show frame
-            cv2.imshow("Vehicle Detection", frame)
+            # 결과 표시
+            cv2.imshow('Vehicle Detection', frame)
             
-            # Check for exit key
+            # 'q' 키를 누르면 종료
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            
-    except KeyboardInterrupt:
-        logger.info("Stopping detection system")
+                
     except Exception as e:
-        logger.error(f"Error in main loop: {e}")
+        logger.error(f"오류 발생: {str(e)}")
     finally:
-        cap.release()
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
