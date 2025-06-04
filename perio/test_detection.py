@@ -10,7 +10,7 @@ import numpy as np
 import logging
 from ultralytics import YOLO
 import pytesseract
-from picamera2 import Picamera2
+import subprocess
 import time
 
 # ================================
@@ -19,8 +19,8 @@ import time
 
 # Camera settings
 CAMERA_WIDTH = 640
-CAMERA_HEIGHT = 480
-CAMERA_FPS = 15
+CAMERA_HEIGHT = 360
+CAMERA_FPS = 30
 
 # Detection settings
 YOLO_CONFIDENCE = 0.5    # minimum confidence for YOLO detection
@@ -35,6 +35,19 @@ logger = logging.getLogger(__name__)
 # ================================
 # Helper Functions
 # ================================
+
+def start_stream():
+    """카메라 스트림 시작"""
+    return subprocess.Popen([
+        "libcamera-vid",
+        "--width", str(CAMERA_WIDTH),
+        "--height", str(CAMERA_HEIGHT),
+        "--framerate", str(CAMERA_FPS),
+        "--codec", "mjpeg",
+        "--timeout", "0",
+        "--nopreview",
+        "-o", "-"
+    ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
 
 def detect_vehicles(frame, model):
     """
@@ -81,50 +94,58 @@ def main():
         # YOLO 모델 로드
         model = YOLO('yolov8n.pt')
         
-        # 카메라 초기화
-        picam2 = Picamera2()
-        config = picam2.create_video_configuration(
-            main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": "RGB888"},
-            lores={"size": (320, 240), "format": "YUV420"}
-        )
-        picam2.configure(config)
-        picam2.start()
-        time.sleep(2)  # 카메라 초기화 대기
+        # 카메라 스트림 시작
+        proc = start_stream()
+        buf = b''
         
-        logger.info("카메라 초기화 완료")
+        logger.info("카메라 스트림 시작")
         
         while True:
-            # 프레임 캡처
-            frame = picam2.capture_array()
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            
-            # 차량 감지
-            boxes = detect_vehicles(frame, model)
-            
-            # 결과 표시
-            for box in boxes:
-                x1, y1, x2, y2, conf, cls = box
-                if conf > 0.5:  # 신뢰도 50% 이상
-                    # 박스 그리기
-                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                    
-                    # 번호판 인식
-                    plate_text = recognize_plate(frame, box)
-                    if plate_text:
-                        cv2.putText(frame, plate_text, (int(x1), int(y1)-10),
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-            
-            # 결과 표시
-            cv2.imshow('Vehicle Detection', frame)
-            
-            # 'q' 키를 누르면 종료
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            # 프레임 읽기
+            chunk = proc.stdout.read(4096)
+            if not chunk:
                 break
+                
+            buf += chunk
+            start = buf.find(b'\xff\xd8')
+            end = buf.find(b'\xff\xd9', start+2)
+            
+            if start != -1 and end != -1:
+                jpg = buf[start:end+2]
+                buf = buf[end+2:]
+                frame = cv2.imdecode(np.frombuffer(jpg, np.uint8), cv2.IMREAD_COLOR)
+                
+                if frame is None:
+                    continue
+                
+                # 차량 감지
+                boxes = detect_vehicles(frame, model)
+                
+                # 결과 표시
+                for box in boxes:
+                    x1, y1, x2, y2, conf, cls = box
+                    if conf > YOLO_CONFIDENCE:  # 신뢰도 50% 이상
+                        # 박스 그리기
+                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                        
+                        # 번호판 인식
+                        plate_text = recognize_plate(frame, box)
+                        if plate_text:
+                            cv2.putText(frame, plate_text, (int(x1), int(y1)-10),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                
+                # 결과 표시
+                cv2.imshow('Vehicle Detection', frame)
+                
+                # 'q' 키를 누르면 종료
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
                 
     except Exception as e:
         logger.error(f"오류 발생: {str(e)}")
     finally:
         cv2.destroyAllWindows()
+        proc.terminate()
 
 if __name__ == "__main__":
     main() 
