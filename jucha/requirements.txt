@@ -1,0 +1,14 @@
+opencv-python>=4.8.0
+numpy>=1.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+openvino-dev>=2023.0.0
+RPi.GPIO>=0.7.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+flask>=3.0.0
+psycopg2-binary>=2.9.9  # PostgreSQL 연결용
+redis>=5.0.1  # 캐싱용 
