@@ -9,13 +9,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 # ========================================
-# 최초 요청 시 DB 테이블 생성
-# ========================================
-@app.before_first_request
-def create_tables():
-    db.create_all()
-
-# ========================================
 # 기본 페이지 (index.html 렌더링용)
 # ========================================
 @app.route('/')
@@ -124,5 +117,7 @@ def receive_vehicle_data():
 # ========================================
 # 서버 실행
 # ========================================
-if __name__ == '__main__':
+if __name__ == '__main__': 
+    with app.app_context():
+        db.create_all()  # 테이블 생성
     app.run(debug=True, host='0.0.0.0')  # 외부 접속 가능하게 설정
