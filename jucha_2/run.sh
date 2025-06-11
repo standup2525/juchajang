@@ -1,32 +1,35 @@
 #!/bin/bash
 
-# Set project folder path
-PROJECT_ROOT="/home/pi/Desktop/jucha_2"
+# 로그 디렉토리 생성
+mkdir -p logs
 
-# Start virtual environment
-source $PROJECT_ROOT/venv/bin/activate
-
-# Set Python path
-export PYTHONPATH=$PYTHONPATH:$PROJECT_ROOT
-
-# Create log folder
-mkdir -p $PROJECT_ROOT/logs
-
-# Check if AIHAT is connected
-if [ -e /dev/mysidia0 ]; then
-    echo "AIHAT detected"
-else
-    echo "Warning: AIHAT not detected, using CPU"
+# 가상환경이 없으면 생성
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
 fi
 
-# Check if camera is connected
-if [ -e /dev/video0 ]; then
-    echo "Camera detected"
-else
-    echo "Error: Camera not detected"
-    exit 1
+# 가상환경 활성화
+source venv/bin/activate
+
+# 필요한 패키지 설치
+echo "Installing required packages..."
+pip install -r requirements.txt
+
+# Tesseract OCR 한국어 데이터 확인 및 다운로드
+if [ ! -f "/usr/share/tesseract-ocr/4.00/tessdata/kor.traineddata" ]; then
+    echo "Downloading Korean language data for Tesseract OCR..."
+    sudo wget -O /usr/share/tesseract-ocr/4.00/tessdata/kor.traineddata https://github.com/tesseract-ocr/tessdata_best/raw/main/kor.traineddata
+    sudo ldconfig
 fi
 
-# Run the web server
-cd $PROJECT_ROOT
+# YOLO 모델 다운로드 확인
+if [ ! -f "models/yolov8n.pt" ]; then
+    echo "Downloading YOLOv8 model..."
+    mkdir -p models
+    wget -O models/yolov8n.pt https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt
+fi
+
+# 웹 서버 실행
+echo "Starting web server..."
 python src/web_server.py 

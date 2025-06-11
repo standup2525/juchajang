@@ -57,10 +57,25 @@ class CarDetector:
 
 class LicensePlateRecognizer:
     def __init__(self):
+        # 번호판 검출을 위한 상수
         self.MIN_AREA = 210
         self.MIN_WIDTH, self.MIN_HEIGHT = 8, 16
         self.MIN_RATIO, self.MAX_RATIO = 0.4, 1.0
         
+        # 번호판 문자 그룹화를 위한 상수
+        self.MAX_DIAG_MULTIPLYER = 4
+        self.MAX_ANGLE_DIFF = 12.0
+        self.MAX_AREA_DIFF = 0.25
+        self.MAX_WIDTH_DIFF = 0.6
+        self.MAX_HEIGHT_DIFF = 0.15
+        self.MIN_N_MATCHED = 4
+        
+        # 번호판 영역 보정을 위한 상수
+        self.PLATE_WIDTH_PADDING = 1.3
+        self.PLATE_HEIGHT_PADDING = 1.5
+        self.MIN_PLATE_RATIO = 3
+        self.MAX_PLATE_RATIO = 10
+
     def preprocess_image(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -74,6 +89,59 @@ class LicensePlateRecognizer:
         )
         return thresh
 
+    def find_chars(self, contour_list):
+        matched_result_idx = []
+
+        for d1 in contour_list:
+            matched_contours_idx = []
+            for d2 in contour_list:
+                if d1['idx'] == d2['idx']:
+                    continue
+
+                dx = abs(d1['cx'] - d2['cx'])
+                dy = abs(d1['cy'] - d2['cy'])
+
+                diagonal_length1 = np.sqrt(d1['w']**2 + d1['h']**2)
+
+                distance = np.linalg.norm(np.array([d1['cx'], d1['cy']]) - np.array([d2['cx'], d2['cy']]))
+                if dx == 0:
+                    angle_diff = 90
+                else:
+                    angle_diff = np.degrees(np.arctan(dy/dx))
+                area_diff = abs(d1['w']*d1['h']-d2['w']*d2['h'])/(d1['w']*d1['h'])
+                width_diff = abs(d1['w']-d2['w'])/d1['w']
+                height_diff = abs(d1['h']-d2['h'])/d1['h']
+
+                if (distance < diagonal_length1*self.MAX_DIAG_MULTIPLYER
+                    and angle_diff < self.MAX_ANGLE_DIFF 
+                    and area_diff < self.MAX_AREA_DIFF
+                    and width_diff < self.MAX_WIDTH_DIFF 
+                    and height_diff < self.MAX_HEIGHT_DIFF):
+                    matched_contours_idx.append(d2['idx'])
+
+            matched_contours_idx.append(d1['idx'])
+
+            if len(matched_contours_idx) < self.MIN_N_MATCHED:
+                continue
+
+            matched_result_idx.append(matched_contours_idx)
+
+            unmatched_contour_idx = []
+            for d4 in contour_list:
+                if d4['idx'] not in matched_contours_idx:
+                    unmatched_contour_idx.append(d4['idx'])
+
+            unmatched_contour = np.take(contour_list, unmatched_contour_idx)
+
+            recursive_contour_list = self.find_chars(unmatched_contour)
+
+            for idx in recursive_contour_list:
+                matched_result_idx.append(idx)
+
+            break
+
+        return matched_result_idx
+
     def find_license_plate(self, image):
         thresh = self.preprocess_image(image)
         contours, _ = cv2.findContours(
@@ -82,8 +150,8 @@ class LicensePlateRecognizer:
             cv2.CHAIN_APPROX_SIMPLE
         )
         
-        possible_contours = []
-        for contour in contours:
+        contours_dict = []
+        for i, contour in enumerate(contours):
             x, y, w, h = cv2.boundingRect(contour)
             area = w * h
             ratio = w / h if h != 0 else 0
@@ -91,13 +159,73 @@ class LicensePlateRecognizer:
             if (area > self.MIN_AREA and
                 w > self.MIN_WIDTH and h > self.MIN_HEIGHT and
                 self.MIN_RATIO < ratio < self.MAX_RATIO):
-                possible_contours.append({
+                contours_dict.append({
                     'contour': contour,
                     'x': x, 'y': y, 'w': w, 'h': h,
-                    'cx': x + w/2, 'cy': y + h/2
+                    'cx': x + w/2, 'cy': y + h/2,
+                    'idx': i
                 })
         
-        return possible_contours
+        if not contours_dict:
+            return []
+
+        result_idx = self.find_chars(contours_dict)
+        matched_result = []
+        for idx_list in result_idx:
+            matched_result.append(np.take(contours_dict, idx_list))
+
+        plate_imgs = []
+        plate_infos = []
+
+        for matched_chars in matched_result:
+            sorted_chars = sorted(matched_chars, key=lambda x: x['cx'])
+
+            plate_cx = (sorted_chars[0]['cx'] + sorted_chars[-1]['cx'])/2
+            plate_cy = (sorted_chars[0]['cy'] + sorted_chars[-1]['cy'])/2
+
+            plate_width = (sorted_chars[-1]['x'] + sorted_chars[-1]['w'] - sorted_chars[0]['x']) * self.PLATE_WIDTH_PADDING
+
+            sum_height = 0
+            for d in sorted_chars:
+                sum_height += d['h']
+
+            plate_height = int(sum_height / len(sorted_chars) * self.PLATE_HEIGHT_PADDING)
+
+            triangle_height = sorted_chars[-1]['cy'] - sorted_chars[0]['cy']
+            triangle_hypotenus = np.linalg.norm(
+                np.array([sorted_chars[0]['cx'], sorted_chars[0]['cy']]) - 
+                np.array([sorted_chars[-1]['cx'], sorted_chars[-1]['cy']])
+            )
+
+            angle = np.degrees(np.arcsin(triangle_height / triangle_hypotenus))
+
+            rotation_matrix = cv2.getRotationMatrix2D(
+                center=(plate_cx, plate_cy), 
+                angle=angle, 
+                scale=1.0
+            )
+
+            img_rotated = cv2.warpAffine(
+                thresh, 
+                M=rotation_matrix, 
+                dsize=(image.shape[1], image.shape[0])
+            )
+
+            img_cropped = cv2.getRectSubPix(
+                img_rotated,
+                patchSize=(int(plate_width), int(plate_height)),
+                center=(int(plate_cx), int(plate_cy))
+            )
+
+            plate_imgs.append(img_cropped)
+            plate_infos.append({
+                'x': int(plate_cx - plate_width / 2),
+                'y': int(plate_cy - plate_height / 2),
+                'w': int(plate_width),
+                'h': int(plate_height)
+            })
+
+        return plate_infos
 
     def recognize_text(self, plate_image):
         plate_image = cv2.resize(plate_image, None, fx=1.6, fy=1.6)
@@ -119,13 +247,17 @@ class ParkingSystem:
         
         for (x1, y1, x2, y2) in car_boxes:
             car_roi = frame[y1:y2, x1:x2]
-            possible_plates = self.plate_recognizer.find_license_plate(car_roi)
+            plate_infos = self.plate_recognizer.find_license_plate(car_roi)
             
-            for plate in possible_plates:
-                plate_x = plate['x']
-                plate_y = plate['y']
-                plate_w = plate['w']
-                plate_h = plate['h']
+            for plate_info in plate_infos:
+                plate_x = plate_info['x']
+                plate_y = plate_info['y']
+                plate_w = plate_info['w']
+                plate_h = plate_info['h']
+                
+                # 번호판 영역이 이미지 경계를 벗어나지 않도록 조정
+                plate_x = max(0, min(plate_x, car_roi.shape[1] - plate_w))
+                plate_y = max(0, min(plate_y, car_roi.shape[0] - plate_h))
                 
                 plate_image = car_roi[plate_y:plate_y+plate_h, plate_x:plate_x+plate_w]
                 plate_text = self.plate_recognizer.recognize_text(plate_image)
