@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Detection & Plate Recognition</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Vehicle Detection & Plate Recognition</h1>
+        <hr>
+        <h3>Live Camera</h3>
+        <img src="/video" width="480" alt="Live camera stream" class="img-thumbnail">
+        <hr>
+        <h3>Latest Detected Vehicle</h3>
+        {% if frame_path %}
+            <img src="/{{ frame_path }}" width="480" alt="Detected vehicle" class="img-thumbnail">
+        {% else %}
+            <p>No vehicle detected yet.</p>
+        {% endif %}
+        <h4>Plate Recognition Result</h4>
+        {% if plate_info and plate_info.plate %}
+            <p><b>Plate:</b> {{ plate_info.plate }}</p>
+        {% else %}
+            <p>No plate recognized yet.</p>
+        {% endif %}
+    </div>
+</body>
+</html> 

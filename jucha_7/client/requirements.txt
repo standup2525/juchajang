@@ -1,0 +1,6 @@
+ultralytics==8.1.2  # YOLOv8
+opencv-python==4.9.0.80  # OpenCV for image processing
+numpy==1.26.4  # Required for array operations
+requests==2.31.0  # For HTTP requests to server
+python-dotenv==1.0.1  # For environment variables
+pytesseract==0.3.10  # For OCR 
