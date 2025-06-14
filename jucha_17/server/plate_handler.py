@@ -5,7 +5,7 @@ from datetime import datetime
 CSV_FILE = "plate_log.csv"
 STATUS_FILE = "status.txt"
 
-WHITELIST = ["200TA0323", "203SE1215", "203JI0513"]
+WHITELIST = ["200태0323", "203서1215", "203지0513"]
 
 def read_status():
     if not os.path.exists(STATUS_FILE):
