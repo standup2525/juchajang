@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>차량 입출차 관리</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f7f7f7; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+        th { background-color: #e0e0e0; }
+        .status { font-size: 1.2em; margin-top: 20px; }
+        .button { padding: 10px 20px; background: #337ab7; color: white; border: none; cursor: pointer; }
+        .button:hover { background: #286090; }
+    </style>
+</head>
+<body>
+    <h1>차량 입출차 관리 시스템</h1>
+    <div class="status">
+        현재 상태: <strong>{{ status }}</strong>
+    </div>
+    <form action="/reset" method="post">
+        <button class="button">상태 초기화</button>
+    </form>
+
+    <h2>최근 입출차 기록</h2>
+    <table>
+        <tr>
+            <th>시간</th>
+            <th>차량 번호</th>
+            <th>동작</th>
+        </tr>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log[0] }}</td>
+            <td>{{ log[1] }}</td>
+            <td>{{ log[2] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html> 
