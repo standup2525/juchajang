@@ -21,10 +21,8 @@
 - Tesseract OCR을 통한 번호판 인식
 
 ### 2. 입출차 판단 (Entry/Exit Determination)
-- 카메라 영역 기반 입출차 구분
-  - 입차 영역: 카메라 좌측
-  - 출차 영역: 카메라 우측
-- 다중 카메라 구성 옵션 지원
+- 서버 입출차 구분
+- 입차기록 유무 -> 자동 입출차 판단
 
 ### 3. 시간 기록 (Time Recording)
 - 번호판을 키로 한 입출차 시간 기록
@@ -44,9 +42,9 @@
 ### 핵심 기술 (Core Technologies)
 - **차량 인식**: YOLOv8, OpenCV
 - **번호판 인식**: OpenCV, Tesseract OCR
-- **데이터베이스**: SQLite/MySQL 고려 중
+- **데이터베이스**: SQLite 고려 중
 - **백엔드**: Python
-- **프론트엔드**: 미정
+- **프론트엔드**: HTTP
 
 ### 시스템 요구사항 (System Requirements)
 - Python 3.8 이상
