@@ -34,8 +34,7 @@ def detect_vehicle(frame):
             print(f"[Detection] {label} detected, large enough: {area_ratio:.2f}%")
             cropped = frame[y1:y2, x1:x2]
             enlarged = cv2.resize(cropped, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_LINEAR)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            img_path = f"images/vehicle_{timestamp}.jpg"
+            img_path = f"images/vehicle.jpg"
             cv2.imwrite(img_path, enlarged)
             captured = True
             break
