@@ -1,7 +1,7 @@
 import requests
 
 def send_plate_text(text):
-    url = 'http://192.168.118.14:5000/api/parking'  # Replace if used
+    url = 'http://192.168.118.14:5000/plate'  # Replace if used
     try:
         response = requests.post(url, json={'plate': text})
         if response.status_code == 200:
