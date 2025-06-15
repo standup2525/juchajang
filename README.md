@@ -147,3 +147,14 @@ pip install -r requirements.txt
 - 마라탕! 앤 꿔바로우
 ### SPECIAL THANKS 기계관 Emart 24!
 
+## 👥 팀 정보
+
+**서태지** - 울산대학교 전기공학부 
+- **서**영이 
+- 이**태**윤
+- **지**나
+
+**University**: 울산대학교 전기공학부  
+**Location**: 울산광역시, 대한민국
+
+
